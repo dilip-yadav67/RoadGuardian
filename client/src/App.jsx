@@ -10,10 +10,18 @@ const COL = { l: "#12b5a6", m: "#ff8a1f", h: "#f23b4e" };
 const EMPTY = { type: "Pothole", sev: "m", road: "", area: "", desc: "", photo: "" };
 
 async function call(path, opts = {}, token) {
-  const r = await fetch(API + path, {
-    ...opts,
-    headers: { "Content-Type": "application/json", ...(token && { Authorization: "Bearer " + token }) },
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 70000);
+  let r;
+  try {
+    r = await fetch(API + path, {
+      ...opts,
+      signal: ctrl.signal,
+      headers: { "Content-Type": "application/json", ...(token && { Authorization: "Bearer " + token }) },
+    });
+  } catch (e) {
+    throw new Error(e.name === "AbortError" ? "Server is taking too long. Please try again." : "Server is waking up or not reachable. Wait a minute and try again.");
+  } finally { clearTimeout(timer); }
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || "Something went wrong");
   return d;
@@ -73,7 +81,12 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [a, setA] = useState({ mode: "login", name: "", email: "", password: "" });
   const token = auth?.token, isAdmin = auth?.user?.role === "admin";
-  const say = (text, ok = false) => setMsg({ text, ok });
+  const [sending, setSending] = useState(false);
+  const [slow, setSlow] = useState(false);
+  const [toast, setToast] = useState(null);
+  const say = (text, ok = false) => { setMsg({ text, ok }); if (text) setToast({ text, ok }); };
+  useEffect(() => { if (toast) { const id = setTimeout(() => setToast(null), 4500); return () => clearTimeout(id); } }, [toast]);
+  const goTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
   const load = () => call("/api/reports").then(setReports).catch(() => say("Server is not reachable. Try again in a moment."));
   useEffect(() => { load(); }, []);
@@ -97,15 +110,20 @@ export default function App() {
     : say(t("gpsFail"));
 
   const submit = async () => {
-    if (!auth) { setShowAuth(true); return say(t("needLogin")); }
+    if (sending) return;
+    if (!auth) { setShowAuth(true); goTop(); return say(t("needLogin")); }
     if (f.road.trim().length < 5 || f.desc.trim().length < 5) return say(t("fillAll"));
+    setSending(true);
+    const timer = setTimeout(() => setSlow(true), 4000);
     try {
       await call("/api/reports", { method: "POST", body: JSON.stringify({ ...f, ...pos }) }, token);
-      setF(EMPTY); setPos(null); say(t("done"), true); load();
+      setF(EMPTY); setPos(null); say(t("done"), true); await load();
+      setTimeout(() => document.getElementById("reports")?.scrollIntoView({ behavior: "smooth" }), 150);
     } catch (e) { say(e.message); }
+    clearTimeout(timer); setSlow(false); setSending(false);
   };
   const upvote = async (id) => {
-    if (!auth) { setShowAuth(true); return say(t("needLogin")); }
+    if (!auth) { setShowAuth(true); goTop(); return say(t("needLogin")); }
     try { await call(`/api/reports/${id}/upvote`, { method: "POST" }, token); load(); } catch (e) { say(e.message); }
   };
   const setStatus = async (id, status) => {
@@ -192,10 +210,13 @@ export default function App() {
             </div>
             <MapView reports={reports} pos={pos} setPos={setPos} />
             {msg.text && <div className={msg.ok ? "ok" : "err"} role="alert">{msg.text}</div>}
-            <button className="submit" onClick={submit}>{t("submit")}</button>
+            <button className="submit" type="button" onClick={submit} disabled={sending} aria-busy={sending}>
+              {sending ? <><span className="spin" aria-hidden="true" />{t("sending")}</> : t("submit")}
+            </button>
+            {slow && <div className="hint" role="status">{t("slow")}</div>}
           </section>
 
-          <section>
+          <section id="reports">
             <div className="filters">
               {["All", ...STATUS].map((s) => <button key={s} className={"chip" + (flt === s ? " on" : "")} onClick={() => setFlt(s)}>{t(s)}</button>)}
               {isAdmin && <span className="staff">🛠️ {t("staff")}</span>}
@@ -227,6 +248,7 @@ export default function App() {
           </section>
         </div>
       </main>
+      {toast && <div className={"toast" + (toast.ok ? "" : " bad")} role="status">{toast.text}</div>}
     </>
   );
 }
