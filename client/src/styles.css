@@ -102,3 +102,13 @@ textarea{min-height:90px}
   .act .up,.act select{width:100%}
   .filters .chip{flex:1 1 auto;text-align:center}
 }
+
+/* ---- submit feedback ---- */
+.submit{transition:transform .1s,opacity .2s}
+.submit:active:not(:disabled){transform:scale(.98)}
+.submit:disabled{opacity:.75;cursor:wait}
+.spin{display:inline-block;width:1em;height:1em;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;vertical-align:-2px;margin-right:8px}
+@media(prefers-reduced-motion:no-preference){.spin{animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}}
+.hint{margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--bg);border:2px solid var(--yellow);font-size:.9rem;font-weight:600}
+.toast{width:max-content;max-width:calc(100% - 24px);text-align:center;z-index:50}
+.toast.bad{background:var(--red)}
