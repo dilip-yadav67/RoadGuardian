@@ -69,6 +69,8 @@ export default function App() {
   const [pos, setPos] = useState(null);
   const [msg, setMsg] = useState({ text: "", ok: false });
   const [showAuth, setShowAuth] = useState(false);
+  const [authErr, setAuthErr] = useState("");
+  const [busy, setBusy] = useState(false);
   const [a, setA] = useState({ mode: "login", name: "", email: "", password: "" });
   const token = auth?.token, isAdmin = auth?.user?.role === "admin";
   const say = (text, ok = false) => setMsg({ text, ok });
@@ -77,11 +79,17 @@ export default function App() {
   useEffect(() => { load(); }, []);
   useEffect(() => { localStorage.setItem("lang", lang); document.documentElement.lang = lang; }, [lang]);
 
-  const doAuth = async () => {
+  const doAuth = async (e) => {
+    e.preventDefault();
+    setAuthErr(""); setBusy(true);
     try {
       const d = await call("/api/auth/" + a.mode, { method: "POST", body: JSON.stringify(a) });
       localStorage.setItem("auth", JSON.stringify(d)); setAuth(d); setShowAuth(false); say("");
-    } catch (e) { say(e.message); }
+      setA({ ...a, password: "" });
+    } catch (err) {
+      setAuthErr(err instanceof TypeError ? "Server is waking up or not reachable. Wait a minute and try again." : err.message);
+    }
+    setBusy(false);
   };
   const logout = () => { localStorage.removeItem("auth"); setAuth(null); };
   const gps = () => navigator.geolocation
@@ -112,34 +120,42 @@ export default function App() {
     <>
       <header className="hero">
         <div className="in">
-          <div>
+          <div className="topbar">
             <div className="brand">🚧 SadakSaathi</div>
-            <h1>{t("title")}</h1>
-            <p>{t("sub")}</p>
+            <div className="topbtns">
+              <button className="themebtn" onClick={() => setLang(lang === "en" ? "hi" : "en")}>{lang === "en" ? "हिंदी" : "English"}</button>
+              {auth
+                ? <button className="themebtn" onClick={logout}>{t("logout")}</button>
+                : <button className="themebtn" onClick={() => setShowAuth(!showAuth)}>{t("login")}</button>}
+            </div>
           </div>
-          <div className="topbtns">
-            <button className="themebtn" onClick={() => setLang(lang === "en" ? "hi" : "en")}>{lang === "en" ? "हिंदी" : "English"}</button>
-            {auth
-              ? <button className="themebtn" onClick={logout}>{auth.user.name} · {t("logout")}</button>
-              : <button className="themebtn" onClick={() => setShowAuth(!showAuth)}>{t("login")}</button>}
-          </div>
+          {auth && <div className="hello">👋 {auth.user.name}{isAdmin ? " · " + t("staff") : ""}</div>}
+          <h1>{t("title")}</h1>
+          <p>{t("sub")}</p>
         </div>
         <div className="road" aria-hidden="true" />
       </header>
 
       <main className="wrap">
         {showAuth && !auth && (
-          <section className="card authcard" style={{ marginTop: 20 }}>
-            <div className="row">
-              <button className={"chip" + (a.mode === "login" ? " on" : "")} onClick={() => setA({ ...a, mode: "login" })}>{t("login")}</button>
-              <button className={"chip" + (a.mode === "register" ? " on" : "")} onClick={() => setA({ ...a, mode: "register" })}>{t("register")}</button>
+          <section className="card authcard" aria-label={t("login")}>
+            <div className="authhead">
+              <h2>{a.mode === "login" ? t("login") : t("register")}</h2>
+              <button type="button" className="closebtn" onClick={() => setShowAuth(false)} aria-label="Close">✕</button>
             </div>
-            {a.mode === "register" && <><label htmlFor="an">{t("name")}</label><input id="an" value={a.name} onChange={(e) => setA({ ...a, name: e.target.value })} /></>}
-            <label htmlFor="ae">{t("email")}</label>
-            <input id="ae" type="email" value={a.email} onChange={(e) => setA({ ...a, email: e.target.value })} />
-            <label htmlFor="ap">{t("password")}</label>
-            <input id="ap" type="password" value={a.password} onChange={(e) => setA({ ...a, password: e.target.value })} />
-            <button className="submit" onClick={doAuth}>{t(a.mode)}</button>
+            <div className="tabs" role="tablist">
+              <button type="button" role="tab" aria-selected={a.mode === "login"} className={a.mode === "login" ? "on" : ""} onClick={() => { setA({ ...a, mode: "login" }); setAuthErr(""); }}>{t("login")}</button>
+              <button type="button" role="tab" aria-selected={a.mode === "register"} className={a.mode === "register" ? "on" : ""} onClick={() => { setA({ ...a, mode: "register" }); setAuthErr(""); }}>{t("register")}</button>
+            </div>
+            <form onSubmit={doAuth} noValidate>
+              {a.mode === "register" && <><label htmlFor="an">{t("name")}</label><input id="an" autoComplete="name" value={a.name} onChange={(e) => setA({ ...a, name: e.target.value })} /></>}
+              <label htmlFor="ae">{t("email")}</label>
+              <input id="ae" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" value={a.email} onChange={(e) => setA({ ...a, email: e.target.value })} />
+              <label htmlFor="ap">{t("password")}</label>
+              <input id="ap" type="password" autoComplete={a.mode === "login" ? "current-password" : "new-password"} value={a.password} onChange={(e) => setA({ ...a, password: e.target.value })} />
+              {authErr && <div className="err" role="alert">{authErr}</div>}
+              <button className="submit" type="submit" disabled={busy}>{busy ? "..." : t(a.mode)}</button>
+            </form>
           </section>
         )}
 
