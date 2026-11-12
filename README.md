@@ -1,4 +1,4 @@
-# SadakSaathi – Road Damage Reporting Portal
+# RoadGaurdian – Road Damage Reporting Portal
 React (Vite) + Express + MongoDB. Features: login (JWT), photo upload, GPS + map pin (OpenStreetMap), Hindi/English toggle, staff status updates.
 
 ## Local run
